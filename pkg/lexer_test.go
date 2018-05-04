@@ -103,7 +103,6 @@ func TestMultipleTokens(t *testing.T) {
 			tok, _, _ = scanner.Scan()
 			if tok != testCase.expected[i] {
 				t.Fatalf("%s: expected token %s but was %s", caseName, testCase.expected[i], tok)
-
 			}
 		}
 	}

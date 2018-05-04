@@ -20,19 +20,42 @@
 
 package whilego
 
-import "io"
+import (
+	"reflect"
+	"strings"
+	"testing"
+)
 
-// Parser represents a parser for the WHILE language.
-type Parser struct {
-	s   *Scanner
-	buf struct {
-		tok Token  // last read token
-		lit string // last read literal
-		n   int    // buffer size
-	}
+func makeIncExpr(v int, dec bool) Expr {
+	incrExpr := &IncrExpr{v, dec}
+	return Expr{Type: INCR_EXPR, IncrExpr: incrExpr}
 }
 
-// NewParser creates a new instance of a WHILE parser.
-func NewParser(r io.Reader) *Parser {
-	return &Parser{s: NewScanner(r)}
+func TestParse(t *testing.T) {
+	type TestCase struct {
+		input    string
+		expected Expr
+	}
+
+	tests := map[string]TestCase{
+		"Increment x1":  {"x1 := x1 + 1", makeIncExpr(1, false)},
+		"Increment x42": {"x42 := x42 + 1", makeIncExpr(42, false)},
+		"Decrement x1":  {"x1 := x1 - 1", makeIncExpr(1, true)},
+		"Decrement x42": {"x42 := x42 - 1", makeIncExpr(42, true)},
+	}
+
+	for caseName, testCase := range tests {
+		reader := strings.NewReader(testCase.input)
+		parser := NewParser(reader)
+
+		expr, err := parser.Parse()
+		if err != nil {
+			t.Errorf("%s: %s", caseName, err)
+		}
+		gotExpr := *expr
+		if !reflect.DeepEqual(gotExpr, testCase.expected) {
+			// TODO: Implement Stringer for Expr
+			t.Errorf("%s: expected %v, got %v", caseName, testCase.expected, gotExpr)
+		}
+	}
 }
