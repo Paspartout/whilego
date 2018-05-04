@@ -45,11 +45,36 @@ const (
 )
 
 // Expr is an expression of the WHILE language.
+// TODO: Maybe Refactor? (Composition?, Reflection?, Inheritance?)
 type Expr struct {
 	Type ExprType
 
-	IncrExpr *IncrExpr
-	// TODO: Add WhileExpr
+	IncrExpr  *IncrExpr
+	SeqExpr   *SeqExpr
+	WhileExpr *WhileExpr
+}
+
+// String returns a simple string representation of the expression.
+// It is meant for debugging, not for pretty printing.
+func (e Expr) String() string {
+	s := "{"
+	switch e.Type {
+	case INVALID_EXPR:
+		s += "Invalid: "
+	case INCR_EXPR:
+		s += "IncrExpr: "
+		s += fmt.Sprint(e.IncrExpr)
+	case SEQ_EXPR:
+		s += "SeqExpr: "
+		s += fmt.Sprintf("P1: %s, P2: %s", e.SeqExpr.P1, e.SeqExpr.P2)
+	case WHILE_EXPR:
+		s += "WhileExpr: "
+	default:
+		s += "Unknown: "
+	}
+
+	s += "}"
+	return s
 }
 
 // IncrExpr represents a expression in the form `xN := xN +/- 1`
@@ -63,9 +88,9 @@ type IncrExpr struct {
 // SeqExpr represents a sequence of two expressions, e.g. `P1;P2`
 type SeqExpr struct {
 	// P1 is the first program to run.
-	P1 Expr
+	P1 *Expr
 	// P1 is the second program to run after P1.
-	P2 Expr
+	P2 *Expr
 }
 
 // WhileExpr represents an expression of the from `WHILE xN != 0 DO P END`
@@ -73,7 +98,7 @@ type WhileExpr struct {
 	// Variable is the variable N to check `xN != 0` for.
 	Variable int
 	// P is the program to run while `xN != 0` is true.
-	P Expr
+	P *Expr
 }
 
 // Parser represents a parser for the WHILE language.
@@ -131,24 +156,49 @@ func (p *Parser) scanIgnoreWhitespace() (tok Token, lit string, err error) {
 
 // Parse parses the input, given to the parser using the reader.
 func (p *Parser) Parse() (*Expr, error) {
-	expr := &Expr{}
+	ex1 := &Expr{}
+	ex2 := &Expr{}
+	var expr *Expr
 
 	tok, _, err := p.scanIgnoreWhitespace()
 	if err != nil {
 		return expr, fmt.Errorf("error tokenizing: %s", err)
 	}
 
+	// TODO: WhileExpr
+
+	// Base case: assignment
 	if tok == VARIABLE {
 		p.unscan()
-		incrExpr, err := p.parseIncr()
+		incExpr, err := p.parseIncr()
 		if err != nil {
 			return nil, err
 		}
-		expr.Type = INCR_EXPR
-		expr.IncrExpr = incrExpr
+		ex1.Type = INCR_EXPR
+		ex1.IncrExpr = incExpr
+		expr = ex1
 	}
-	if tok == SEMICOLON {
 
+	tok, _, err = p.scanIgnoreWhitespace()
+	// TODO: Check if following condition is sane
+	if tok == ILLEGAL || tok == EOF {
+		return expr, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("error tokenizing after ws: %s", err)
+	}
+
+	// If there is a semicolon following the assignment
+	if tok == SEMICOLON {
+		// Try to parse the following expression
+		ex2, err = p.Parse()
+		if err != nil {
+			return nil,
+				fmt.Errorf("no valid expression after semicolon: %s", err)
+		}
+		expr = &Expr{}
+		expr.Type = SEQ_EXPR
+		expr.SeqExpr = &SeqExpr{ex1, ex2}
 	}
 
 	return expr, nil
@@ -212,6 +262,15 @@ func (p *Parser) parseIncr() (*IncrExpr, error) {
 		incrExpr.Decrement = true
 	default:
 		return nil, fmt.Errorf("token \"%s\" has to be - or + sign", lit)
+	}
+
+	// Make sure there is a 1 following the +/- sign
+	tok, lit, err = p.scanIgnoreWhitespace()
+	if err != nil {
+		return nil, fmt.Errorf("error parsing number after increment/decrement: %s", err)
+	}
+	if tok != CONSTANT || lit != "1" {
+		return nil, fmt.Errorf("there has to follow a 1 after +/-, got \"%s\"", lit)
 	}
 
 	return incrExpr, nil

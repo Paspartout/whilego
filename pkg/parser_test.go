@@ -26,9 +26,14 @@ import (
 	"testing"
 )
 
-func makeIncExpr(v int, dec bool) Expr {
+func makeIncrExpr(v int, dec bool) Expr {
 	incrExpr := &IncrExpr{v, dec}
 	return Expr{Type: INCR_EXPR, IncrExpr: incrExpr}
+}
+
+func makeSeqExpr(p1, p2 *Expr) Expr {
+	incrExpr := &SeqExpr{p1, p2}
+	return Expr{Type: SEQ_EXPR, SeqExpr: incrExpr}
 }
 
 func TestParse(t *testing.T) {
@@ -37,11 +42,14 @@ func TestParse(t *testing.T) {
 		expected Expr
 	}
 
+	incrX1 := makeIncrExpr(1, false)
+	decrX1 := makeIncrExpr(1, true)
 	tests := map[string]TestCase{
-		"Increment x1":  {"x1 := x1 + 1", makeIncExpr(1, false)},
-		"Increment x42": {"x42 := x42 + 1", makeIncExpr(42, false)},
-		"Decrement x1":  {"x1 := x1 - 1", makeIncExpr(1, true)},
-		"Decrement x42": {"x42 := x42 - 1", makeIncExpr(42, true)},
+		"Increment x1":  {"x1 := x1 + 1", incrX1},
+		"Decrement x1":  {"x1 := x1 - 1", decrX1},
+		"Increment x42": {"x42 := x42 + 1", makeIncrExpr(42, false)},
+		"Decrement x42": {"x42 := x42 - 1", makeIncrExpr(42, true)},
+		"x1++;x1--":     {"x1 := x1 + 1 ; x1 := x1 - 1", makeSeqExpr(&incrX1, &decrX1)},
 	}
 
 	for caseName, testCase := range tests {
@@ -55,7 +63,7 @@ func TestParse(t *testing.T) {
 		gotExpr := *expr
 		if !reflect.DeepEqual(gotExpr, testCase.expected) {
 			// TODO: Implement Stringer for Expr
-			t.Errorf("%s: expected %v, got %v", caseName, testCase.expected, gotExpr)
+			t.Errorf("%s: expected %s, got %s", caseName, testCase.expected, gotExpr)
 		}
 	}
 }
